@@ -1,4 +1,4 @@
-/* Gerçek deneme UI'si. Mevcut manuel deneme formunu bozmadan renderDenemeler'i genişletir. */
+/* Gerçek deneme UI'si — backend'in 20 soruluk deneme orkestrasyonunu kullanır. */
 
 let GERCEK_DENEME = null;
 
@@ -18,67 +18,46 @@ function gercekDenemeIstekleriOlustur() {
   });
 }
 
-// Bazı eski backend sürümlerinde /generate-mixed-test bulunmayabiliyor.
-// Böyle bir durumda zaten çalışan /generate-questions ucundan paket paket
-// soru üretip 20 soruluk denemeyi yine oluşturuyoruz.
-async function gercekDenemeYedekSoruUret(istekler) {
-  const sorular = [];
-  const toplam = istekler.reduce((n, x) => n + Number(x.count || 0), 0);
-  for (let i = 0; i < istekler.length; i++) {
-    const istek = istekler[i];
-    if (!istek.count) continue;
-    const sonuc = await apiSoruUret(istek);
-    if (!sonuc.ok) {
-      throw new Error(`${istek.subject} soruları üretilemedi: ${sonuc.mesaj || "Sunucu hatası"}`);
-    }
-    const paket = sonuc.veri?.sorular || sonuc.veri?.questions || [];
-    if (Array.isArray(paket)) sorular.push(...paket);
-    const bar = $("#denemeHazirlikBar");
-    const metin = $("#denemeHazirlikMetni");
-    if (bar) bar.style.width = `${Math.min(96, Math.round((sorular.length / toplam) * 100))}%`;
-    if (metin) metin.textContent = `${istek.subject} hazırlanıyor… (${Math.min(sorular.length, toplam)}/${toplam})`;
-  }
-  if (sorular.length < 20) throw new Error(`Yapay zekâ yalnızca ${sorular.length} soru hazırladı. 20 soru tamamlanamadı.`);
-  return sorular.slice(0, 20);
-}
-
 async function gercekDenemeBaslat() {
   if (typeof apiBaseUrlAl === "function" && !apiBaseUrlAl()) {
     modalAc("Sunucu adresi gerekli", "<p>Gerçek deneme oluşturmak için <b>Ayarlar</b> bölümünden backend adresini girmen gerekiyor.</p>", '<button class="btn btn-accent" id="denemeAyarBtn">Ayarlara Git</button>');
-    $("#denemeAyarBtn").addEventListener("click", () => { modalKapat(); sayfaGec("ayarlar"); });
+    $("#denemeAyarBtn")?.addEventListener("click", () => { modalKapat(); sayfaGec("ayarlar"); });
     return;
   }
 
   const istekler = gercekDenemeIstekleriOlustur();
-  modalAc("Deneme Hazırlanıyor", '<div style="text-align:center;padding:20px 0"><div class="alt">20 soruluk deneme hazırlanıyor. Önce hızlı yöntem deneniyor; gerekirse sorular ders ders üretilecek.</div><div class="progress-track" style="margin-top:18px"><div class="progress-fill" id="denemeHazirlikBar" style="width:8%"></div></div><div id="denemeHazirlikMetni" style="margin-top:10px;font-weight:600">Sorular hazırlanıyor…</div></div>', "");
+  modalAc("Deneme Hazırlanıyor", `
+    <div style="text-align:center;padding:20px 0">
+      <div class="alt">20 soruluk gerçek deneme hazırlanıyor. Yapay zekâ 4 paket halinde soru üretiyor.</div>
+      <div class="progress-track" style="margin-top:18px"><div class="progress-fill" id="denemeHazirlikBar" style="width:5%"></div></div>
+      <div id="denemeHazirlikMetni" style="margin-top:10px;font-weight:600">Deneme sunucudan hazırlanıyor…</div>
+      <div class="alt" style="margin-top:8px">Bu işlem birkaç dakika sürebilir; pencereyi kapatma.</div>
+    </div>`, "");
 
   try {
-    let sorular = [];
-    const karisik = await apiKarisikTestOlustur(istekler);
-    if (karisik.ok) {
-      sorular = karisik.veri?.sorular || karisik.veri?.questions || [];
+    const sonuc = await apiGercekDenemeOlustur(istekler);
+    if (!sonuc.ok) throw new Error(sonuc.mesaj || "Deneme sunucudan oluşturulamadı.");
+    const sorular = sonuc.veri?.sorular || sonuc.veri?.questions || [];
+    if (!Array.isArray(sorular) || sorular.length < 20) {
+      throw new Error(`Sunucu ${Array.isArray(sorular) ? sorular.length : 0} soru döndürdü. 20 soru tamamlanamadı.`);
     }
-
-    // 404 / "Uç bulunamadı" veya eski backend durumunda fallback.
-    if (sorular.length < 20) {
-      const metin = $("#denemeHazirlikMetni");
-      if (metin) metin.textContent = "Standart deneme ucu kullanılamadı; alternatif soru üretimi başlatılıyor…";
-      sorular = await gercekDenemeYedekSoruUret(istekler);
-    }
-
-    if (sorular.length < 20) throw new Error(`Yapay zekâ ${sorular.length} soru hazırladı. 20 soru tamamlanamadı.`);
+    const bar = $("#denemeHazirlikBar");
+    const metin = $("#denemeHazirlikMetni");
+    if (bar) bar.style.width = "100%";
+    if (metin) metin.textContent = "20 soru hazır. Deneme başlatılıyor…";
+    await new Promise(r => setTimeout(r, 250));
     modalKapat();
     gercekDenemeSinaviniAc(sorular.slice(0, 20));
   } catch (e) {
-    modalAc("Deneme oluşturulamadı", `<p>${String(e.message || e).replace(/[<>]/g, "")}</p><p class="alt">Ayarlar'daki API adresinin doğru olduğundan ve OpenRouter servisinin erişilebilir olduğundan emin ol.</p>`, '<button class="btn btn-accent" id="denemeHataKapat">Kapat</button>');
-    $("#denemeHataKapat").addEventListener("click", modalKapat);
+    const mesaj = String(e?.message || e || "Bilinmeyen hata").replace(/[<>]/g, "");
+    modalAc("Deneme oluşturulamadı", `<p>${mesaj}</p><p class="alt">Ayarlar'daki backend adresini kontrol et. Sunucu çalışıyorsa birkaç dakika sonra tekrar deneyebilirsin.</p>`, '<button class="btn btn-accent" id="denemeHataKapat">Kapat</button>');
+    $("#denemeHataKapat")?.addEventListener("click", modalKapat);
   }
 }
 
 function gercekDenemeSinaviniAc(sorular) {
   const state = { sorular, cevaplar: {}, index: 0, baslangic: Date.now(), sureSn: 25 * 60, interval: null };
   GERCEK_DENEME = state;
-
   const tick = () => {
     const gecen = Math.floor((Date.now() - state.baslangic) / 1000);
     const kalan = Math.max(0, state.sureSn - gecen);
@@ -87,7 +66,6 @@ function gercekDenemeSinaviniAc(sorular) {
     if (kalan <= 0) gercekDenemeBitir(true);
   };
   state.interval = setInterval(tick, 1000);
-
   modalAc("KPSS 2026 — Süreli Deneme", '<div id="gercekDenemeGovde"></div>', '<button class="btn btn-outline" id="gercekDenemeBitirBtn">Denemeyi Bitir</button>');
   $("#gercekDenemeBitirBtn").addEventListener("click", () => gercekDenemeBitir(false));
   gercekDenemeSoruCiz();
@@ -99,19 +77,18 @@ function gercekDenemeSoruCiz() {
   if (!s) return;
   const soru = s.sorular[s.index];
   const govde = $("#gercekDenemeGovde");
-  if (!govde) return;
+  if (!govde || !soru) return;
   const secilen = s.cevaplar[s.index];
   govde.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:10px"><b>${s.index + 1} / ${s.sorular.length}</b><strong id="gercekDenemeSure" class="tabular">25:00</strong></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:10px"><b>Soru ${s.index + 1} / ${s.sorular.length}</b><strong id="gercekDenemeSure" class="tabular">25:00</strong></div>
     <div class="progress-track" style="margin-bottom:18px"><div class="progress-fill" style="width:${((s.index + 1) / s.sorular.length) * 100}%"></div></div>
-    <div class="alt" style="margin-bottom:7px">${soru.subject} · ${soru.topic}</div>
-    <div style="font-size:16px;font-weight:600;line-height:1.55;margin-bottom:16px">${soru.soru}</div>
-    <div style="display:grid;gap:9px">${["A","B","C","D","E"].map(h => `<button class="btn ${secilen === h ? "btn-primary" : "btn-outline"}" data-deneme-cevap="${h}" style="text-align:left;white-space:normal">${h}) ${soru.secenekler[h]}</button>`).join("")}</div>
-    <div style="display:flex;justify-content:space-between;margin-top:18px;gap:8px"><button class="btn btn-outline" id="denemeOncekiBtn" ${s.index === 0 ? "disabled" : ""}>← Önceki</button><button class="btn btn-primary" id="denemeSonrakiBtn">${s.index === s.sorular.length - 1 ? "Bitir" : "Sonraki →"}</button></div>
-  `;
+    <div class="alt" style="margin-bottom:7px">${soru.subject || "KPSS"} · ${soru.topic || "Genel"}</div>
+    <div style="font-size:16px;font-weight:600;line-height:1.55;margin-bottom:16px">${soru.soru || "Soru metni bulunamadı."}</div>
+    <div style="display:grid;gap:9px">${["A","B","C","D","E"].map(h => `<button class="btn ${secilen === h ? "btn-primary" : "btn-outline"}" data-deneme-cevap="${h}" style="text-align:left;white-space:normal">${h}) ${soru.secenekler?.[h] || ""}</button>`).join("")}</div>
+    <div style="display:flex;justify-content:space-between;margin-top:18px;gap:8px"><button class="btn btn-outline" id="denemeOncekiBtn" ${s.index === 0 ? "disabled" : ""}>← Önceki</button><button class="btn btn-primary" id="denemeSonrakiBtn">${s.index === s.sorular.length - 1 ? "Bitir" : "Sonraki →"}</button></div>`;
   $all("[data-deneme-cevap]", govde).forEach(btn => btn.addEventListener("click", () => { s.cevaplar[s.index] = btn.dataset.denemeCevap; gercekDenemeSoruCiz(); }));
-  $("#denemeOncekiBtn").addEventListener("click", () => { if (s.index > 0) { s.index--; gercekDenemeSoruCiz(); } });
-  $("#denemeSonrakiBtn").addEventListener("click", () => { if (s.index === s.sorular.length - 1) gercekDenemeBitir(false); else { s.index++; gercekDenemeSoruCiz(); } });
+  $("#denemeOncekiBtn")?.addEventListener("click", () => { if (s.index > 0) { s.index--; gercekDenemeSoruCiz(); } });
+  $("#denemeSonrakiBtn")?.addEventListener("click", () => { if (s.index === s.sorular.length - 1) gercekDenemeBitir(false); else { s.index++; gercekDenemeSoruCiz(); } });
 }
 
 async function gercekDenemeBitir(sureDoldu) {
@@ -135,7 +112,7 @@ async function gercekDenemeBitir(sureDoldu) {
   try { if (typeof ilerlemeTestSonucuKaydet === "function") await ilerlemeTestSonucuKaydet({ testTuru: "gercek-deneme", dogru, yanlis, bos }); } catch (_) {}
   GERCEK_DENEME = null;
   modalAc("Deneme Sonucu", `<div class="grid grid-4"><div class="card stat-card"><span class="label">Doğru</span><span class="value">${dogru}</span></div><div class="card stat-card"><span class="label">Yanlış</span><span class="value">${yanlis}</span></div><div class="card stat-card"><span class="label">Boş</span><span class="value">${bos}</span></div><div class="card stat-card"><span class="label">Net</span><span class="value">${net}</span></div></div><div style="margin-top:18px"><b>${sureDoldu ? "⏰ Süre doldu." : "✅ Deneme tamamlandı."}</b><p class="alt">${enZayifDersMetni(dersler)}</p></div>`, '<button class="btn btn-accent" id="sonucKapatBtn">Kapat</button>');
-  $("#sonucKapatBtn").addEventListener("click", () => { modalKapat(); if (uiState.sayfa === "denemeler") renderDenemeler(); });
+  $("#sonucKapatBtn")?.addEventListener("click", () => { modalKapat(); if (uiState.sayfa === "denemeler") renderDenemeler(); });
 }
 
 function enZayifDersMetni(dersler) {
@@ -156,5 +133,5 @@ window.renderDenemeler = function() {
   card.style.marginBottom = "16px";
   card.innerHTML = `<div style="padding:16px"><div class="section-title">Gerçek Deneme Modu</div><p style="margin:0 0 12px">AI ile 20 soruluk, süreli deneme oluştur. Bitince netini ve zayıf derslerini gör.</p><button class="btn btn-accent btn-block" id="gercekDenemeBaslatBtn">🚀 20 Soruluk Denemeyi Başlat</button></div>`;
   form.parentNode.insertBefore(card, form);
-  $("#gercekDenemeBaslatBtn").addEventListener("click", gercekDenemeBaslat);
+  $("#gercekDenemeBaslatBtn")?.addEventListener("click", gercekDenemeBaslat);
 };
