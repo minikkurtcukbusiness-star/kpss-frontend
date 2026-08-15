@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="tr" data-theme="acik">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>2026 KPSS Ortaöğretim — Çalışma Takip</title>
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="app-shell">
+
+  <!-- ============ NAVİGASYON ============ -->
+  <nav class="nav" id="anaNav">
+    <div class="nav-brand">
+      <span class="nav-brand-mark">KPSS</span>
+      <span class="nav-brand-year">2026</span>
+    </div>
+    <ul class="nav-list" id="navList">
+      <li><button class="nav-item" data-page="anasayfa"><span class="nav-ico">◆</span><span>Ana Sayfa</span></button></li>
+      <li><button class="nav-item" data-page="dersler"><span class="nav-ico">▤</span><span>Dersler</span></button></li>
+      <li><button class="nav-item" data-page="plan"><span class="nav-ico">▦</span><span>Plan</span></button></li>
+      <li><button class="nav-item" data-page="denemeler"><span class="nav-ico">▥</span><span>Denemeler</span></button></li>
+      <li><button class="nav-item" data-page="istatistik"><span class="nav-ico">▲</span><span>İstatistik</span></button></li>
+      <li><button class="nav-item" data-page="guncel"><span class="nav-ico">●</span><span>Güncel Bilgiler</span></button></li>
+      <li><button class="nav-item" data-page="aiogretmen"><span class="nav-ico">◈</span><span>AI Öğretmen</span></button></li>
+      <li><button class="nav-item" data-page="ayarlar"><span class="nav-ico">✦</span><span>Ayarlar</span></button></li>
+    </ul>
+    <div class="nav-foot">
+      <button class="tema-toggle" id="temaToggleBtn" title="Temayı değiştir">🌓 <span id="temaToggleLabel">Koyu tema</span></button>
+    </div>
+  </nav>
+
+  <!-- ============ İÇERİK ============ -->
+  <main class="content">
+    <section class="page" data-page="anasayfa" id="page-anasayfa"></section>
+    <section class="page" data-page="dersler" id="page-dersler"></section>
+    <section class="page" data-page="plan" id="page-plan"></section>
+    <section class="page" data-page="denemeler" id="page-denemeler"></section>
+    <section class="page" data-page="istatistik" id="page-istatistik"></section>
+    <section class="page" data-page="guncel" id="page-guncel"></section>
+    <section class="page" data-page="aiogretmen" id="page-aiogretmen"></section>
+    <section class="page" data-page="ayarlar" id="page-ayarlar"></section>
+  </main>
+
+  <!-- ============ MOBİL ALT MENÜ ============ -->
+  <nav class="bottom-nav" id="bottomNav">
+    <button class="bn-item" data-page="anasayfa"><span>◆</span>Ana Sayfa</button>
+    <button class="bn-item" data-page="dersler"><span>▤</span>Dersler</button>
+    <button class="bn-item" data-page="plan"><span>▦</span>Plan</button>
+    <button class="bn-item" data-page="denemeler"><span>▥</span>Deneme</button>
+    <button class="bn-item" data-page="istatistik"><span>▲</span>İstat.</button>
+    <button class="bn-item" data-page="guncel"><span>●</span>Güncel</button>
+    <button class="bn-item" data-page="aiogretmen"><span>◈</span>AI</button>
+    <button class="bn-item" data-page="ayarlar"><span>✦</span>Ayarlar</button>
+  </nav>
+
+</div>
+
+<!-- ============ MODAL KÖKÜ ============ -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal-box" id="modalBox"></div>
+</div>
+
+<!-- ============ TOAST ============ -->
+<div class="toast" id="toast"></div>
+
+<script src="js/data.js"></script>
+<script src="js/storage.js"></script>
+<script src="js/api.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
