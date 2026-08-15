@@ -72,6 +72,22 @@ function studyKartlariCiz() {
       <div class="study-card-actions"><button type="button" class="btn btn-primary btn-sm" data-study-start="${k.id}" data-study-ders="${k.dersId}">📖 Çalış</button><button type="button" class="btn btn-outline btn-sm" data-study-status="${k.id}" data-study-ders="${k.dersId}">Durumu değiştir</button></div>
     </article>`;
   }).join("");
+
+  // Kartlar her filtrelemede yeniden üretildiği için doğrudan listener'ları burada tekrar bağlıyoruz.
+  $all("[data-study-start]", kok).forEach(btn => {
+    btn.addEventListener("click", e => {
+      e.preventDefault();
+      e.stopPropagation();
+      studyKonuAc(btn.dataset.studyDers, btn.dataset.studyStart);
+    });
+  });
+  $all("[data-study-status]", kok).forEach(btn => {
+    btn.addEventListener("click", e => {
+      e.preventDefault();
+      e.stopPropagation();
+      studyDurumDegistir(btn.dataset.studyDers, btn.dataset.studyStatus);
+    });
+  });
 }
 
 function studyKonuBul(dersId, konuId) {
@@ -93,7 +109,7 @@ function studyKonuAc(dersId, konuId) {
   }
 
   const hedef = Math.max(1, Number(STATE.ayarlar.pomodoroCalismaDk) || 25);
-  modalAc(`📖 ${konu.ad}`, `
+  const acildi = modalAc(`📖 ${konu.ad}`, `
     <div class="study-modal-intro"><span class="study-subject-dot" style="background:${meta.renk}"></span>${meta.name}</div>
     <div class="study-focus-box"><strong>Bugünkü mini hedef</strong><p>15 dakika konu tekrarı + ardından 5 soru. Mükemmel olmak zorunda değilsin; ilerlemek yeter.</p></div>
     <div class="study-note-label">Kendi notun</div>
@@ -101,13 +117,17 @@ function studyKonuAc(dersId, konuId) {
     <div class="study-modal-stats"><span>📚 ${konu.soru || 0} soru</span><span>⏱️ ${konu.calismaDk || 0} dk</span><span>🎯 ${yuzde(konu.dogru, konu.dogru + konu.yanlis)}% başarı</span></div>
   `, `<button type="button" class="btn btn-outline" id="studyNotKaydet">Notu Kaydet</button><button type="button" class="btn btn-primary" id="studyTimerBaslat">⏱️ ${hedef} dk Başlat</button>`);
 
-  $("#studyNotKaydet").addEventListener("click", () => {
+  if (!acildi) return;
+
+  const notBtn = $("#studyNotKaydet");
+  const timerBtn = $("#studyTimerBaslat");
+  if (notBtn) notBtn.addEventListener("click", () => {
     konu.not = $("#studyKonuNot").value;
     stateKaydet();
     toast("Konu notu kaydedildi.");
   });
 
-  $("#studyTimerBaslat").addEventListener("click", () => {
+  if (timerBtn) timerBtn.addEventListener("click", () => {
     modalKapat();
     pomo.dersId = dersId;
     if (!pomo.calisiyor) pomoBaslatDuraklat();
@@ -136,7 +156,7 @@ function studyRastgeleKonu() {
   setTimeout(() => studyKonuAc(konu.dersId, konu.id), 50);
 }
 
-/* Dinamik kartlar yeniden çizildiğinde listener kaybolmasın diye tek bir event delegation kullanıyoruz. */
+/* Yedek event delegation: doğrudan listener herhangi bir nedenle kaybolsa bile kartlar çalışır. */
 document.addEventListener("click", e => {
   const start = e.target.closest?.("[data-study-start]");
   if (start) {
@@ -145,7 +165,6 @@ document.addEventListener("click", e => {
     studyKonuAc(start.dataset.studyDers, start.dataset.studyStart);
     return;
   }
-
   const status = e.target.closest?.("[data-study-status]");
   if (status) {
     e.preventDefault();
