@@ -1,6 +1,6 @@
-/* ========================================================================== 
+/* ========================================================================
    api.js — Backend ile konuşan tek merkezi katman.
-   ========================================================================== */
+   ======================================================================== */
 
 const API_STORAGE_KEY = "kpss2026_api_ayarlari_v1";
 
@@ -18,11 +18,15 @@ function apiAyarlariKaydet(ayarlar) {
 }
 
 function apiBaseUrlAl() {
-  return (apiAyarlariOku().baseUrl || "").replace(/\/$/, "");
+  const raw = (apiAyarlariOku().baseUrl || "").trim();
+  if (!raw) return "";
+  // Kullanıcı bazen Railway adresinin sonuna /api ekliyor. Uygulamanın
+  // endpointleri zaten /api/... ile başladığı için burada normalize ediyoruz.
+  return raw.replace(/\/+$/, "").replace(/\/api$/i, "");
 }
 
 function apiBaseUrlAyarla(url) {
-  apiAyarlariKaydet({ baseUrl: (url || "").trim() });
+  apiAyarlariKaydet({ baseUrl: (url || "").trim().replace(/\/+$/, "").replace(/\/api$/i, "") });
 }
 
 function cihazKullaniciId() {
@@ -62,7 +66,13 @@ async function apiIstek(yol, { method = "GET", body, timeoutMs = 25000 } = {}) {
     const veri = await res.json().catch(() => ({}));
 
     if (!res.ok) {
-      return { ok: false, mesaj: veri.hata || "Sunucu bir hata döndürdü." };
+      const hata = veri.hata || `Sunucu ${res.status} döndürdü.`;
+      // Eski sürümlerde kayıtlı base URL'nin sonuna /api eklenmiş olabilir.
+      // İlk normalize edilmiş istek 404 döndürürse aynı isteği bir kez
+      // ham kayıtlı adresle değil, doğru origin üzerinden yeniden denemek
+      // yerine kullanıcıya net tanı bilgisi veriyoruz. Böylece "Uç bulunamadı"
+      // gibi anlamsız mesaj yerine gerçek durum görülür.
+      return { ok: false, status: res.status, mesaj: hata, yol, baseUrl };
     }
 
     return { ok: true, veri };
@@ -80,10 +90,7 @@ async function apiBaglantiTesti() {
 }
 
 async function apiAiOgretmenSor(soru) {
-  return apiIstek("/api/ai/teacher", {
-    method: "POST",
-    body: { soru }
-  });
+  return apiIstek("/api/ai/teacher", { method: "POST", body: { soru } });
 }
 
 async function apiSoruUret({ subject, topic, difficulty, count }) {
@@ -98,7 +105,7 @@ async function apiKarisikTestOlustur(istekler) {
   return apiIstek("/api/ai/generate-mixed-test", {
     method: "POST",
     body: { istekler },
-    timeoutMs: 90000
+    timeoutMs: 120000
   });
 }
 
@@ -115,24 +122,15 @@ async function apiGuncelBilgilerGetir() {
 }
 
 async function apiGununTestiOlustur() {
-  return apiIstek("/api/current-affairs/quiz", {
-    method: "POST",
-    timeoutMs: 45000
-  });
+  return apiIstek("/api/current-affairs/quiz", { method: "POST", timeoutMs: 45000 });
 }
 
 async function apiSoruEkle(soruNesnesi) {
-  return apiIstek("/api/questions", {
-    method: "POST",
-    body: soruNesnesi
-  });
+  return apiIstek("/api/questions", { method: "POST", body: soruNesnesi });
 }
 
 async function apiYanlisKaydet(questionId, verilenCevap) {
-  return apiIstek("/api/questions/wrong", {
-    method: "POST",
-    body: { questionId, verilenCevap }
-  });
+  return apiIstek("/api/questions/wrong", { method: "POST", body: { questionId, verilenCevap } });
 }
 
 async function apiYanlislarGetir() {
@@ -140,8 +138,5 @@ async function apiYanlislarGetir() {
 }
 
 async function apiSoruBildir(questionId, sebep) {
-  return apiIstek("/api/questions/report", {
-    method: "POST",
-    body: { questionId, sebep }
-  });
+  return apiIstek("/api/questions/report", { method: "POST", body: { questionId, sebep } });
 }
