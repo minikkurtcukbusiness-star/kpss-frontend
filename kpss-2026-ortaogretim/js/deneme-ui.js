@@ -26,17 +26,19 @@ async function gercekDenemeBaslat() {
   }
 
   const istekler = gercekDenemeIstekleriOlustur();
-  modalAc("Deneme Hazırlanıyor", '<div style="text-align:center;padding:20px 0"><div class="alt">20 soruluk deneme 4 küçük paket halinde hazırlanıyor. Bu işlem biraz sürebilir.</div><div class="progress-track" style="margin-top:18px"><div class="progress-fill" id="denemeHazirlikBar" style="width:5%"></div></div><div id="denemeHazirlikMetni" style="margin-top:10px;font-weight:600">Sorular hazırlanıyor…</div></div>', "");
+  modalAc("Deneme Hazırlanıyor", '<div style="text-align:center;padding:20px 0"><div class="alt">20 soruluk deneme hazırlanıyor. Sorular birkaç paket halinde üretilebilir; bu işlem biraz sürebilir.</div><div class="progress-track" style="margin-top:18px"><div class="progress-fill" id="denemeHazirlikBar" style="width:8%"></div></div><div id="denemeHazirlikMetni" style="margin-top:10px;font-weight:600">Sorular hazırlanıyor…</div></div>', "");
 
   try {
-    const sonuc = await apiIstek("/api/ai/generate-mock-exam", { method: "POST", body: { istekler }, timeoutMs: 480000 });
+    // Backend'de mevcut ve çalışan uç: /api/ai/generate-mixed-test
+    // /generate-mock-exam mevcut backend'de olmadığı için "Uç bulunamadı" hatası veriyordu.
+    const sonuc = await apiKarisikTestOlustur(istekler);
     if (!sonuc.ok) throw new Error(sonuc.mesaj || "Deneme oluşturulamadı.");
     const sorular = sonuc.veri?.sorular || [];
     if (sorular.length < 20) throw new Error(`Yapay zekâ ${sorular.length} soru hazırladı. 20 soru tamamlanamadı.`);
     modalKapat();
     gercekDenemeSinaviniAc(sorular.slice(0, 20));
   } catch (e) {
-    modalAc("Deneme hazırlanamadı", `<p>${String(e.message || e).replace(/[<>]/g, "")}</p><p class="alt">Backend'in çalıştığından ve Ayarlar'daki API adresinin doğru olduğundan emin ol.</p>`, '<button class="btn btn-accent" id="denemeHataKapat">Kapat</button>');
+    modalAc("Deneme oluşturulamadı", `<p>${String(e.message || e).replace(/[<>]/g, "")}</p><p class="alt">Backend'in çalıştığından, Ayarlar'daki API adresinin doğru olduğundan ve OpenRouter servisinin erişilebilir olduğundan emin ol.</p>`, '<button class="btn btn-accent" id="denemeHataKapat">Kapat</button>');
     $("#denemeHataKapat").addEventListener("click", modalKapat);
   }
 }
