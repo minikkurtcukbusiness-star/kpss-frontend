@@ -18,6 +18,30 @@ function gercekDenemeIstekleriOlustur() {
   });
 }
 
+// Bazı eski backend sürümlerinde /generate-mixed-test bulunmayabiliyor.
+// Böyle bir durumda zaten çalışan /generate-questions ucundan paket paket
+// soru üretip 20 soruluk denemeyi yine oluşturuyoruz.
+async function gercekDenemeYedekSoruUret(istekler) {
+  const sorular = [];
+  const toplam = istekler.reduce((n, x) => n + Number(x.count || 0), 0);
+  for (let i = 0; i < istekler.length; i++) {
+    const istek = istekler[i];
+    if (!istek.count) continue;
+    const sonuc = await apiSoruUret(istek);
+    if (!sonuc.ok) {
+      throw new Error(`${istek.subject} soruları üretilemedi: ${sonuc.mesaj || "Sunucu hatası"}`);
+    }
+    const paket = sonuc.veri?.sorular || sonuc.veri?.questions || [];
+    if (Array.isArray(paket)) sorular.push(...paket);
+    const bar = $("#denemeHazirlikBar");
+    const metin = $("#denemeHazirlikMetni");
+    if (bar) bar.style.width = `${Math.min(96, Math.round((sorular.length / toplam) * 100))}%`;
+    if (metin) metin.textContent = `${istek.subject} hazırlanıyor… (${Math.min(sorular.length, toplam)}/${toplam})`;
+  }
+  if (sorular.length < 20) throw new Error(`Yapay zekâ yalnızca ${sorular.length} soru hazırladı. 20 soru tamamlanamadı.`);
+  return sorular.slice(0, 20);
+}
+
 async function gercekDenemeBaslat() {
   if (typeof apiBaseUrlAl === "function" && !apiBaseUrlAl()) {
     modalAc("Sunucu adresi gerekli", "<p>Gerçek deneme oluşturmak için <b>Ayarlar</b> bölümünden backend adresini girmen gerekiyor.</p>", '<button class="btn btn-accent" id="denemeAyarBtn">Ayarlara Git</button>');
@@ -26,19 +50,27 @@ async function gercekDenemeBaslat() {
   }
 
   const istekler = gercekDenemeIstekleriOlustur();
-  modalAc("Deneme Hazırlanıyor", '<div style="text-align:center;padding:20px 0"><div class="alt">20 soruluk deneme hazırlanıyor. Sorular birkaç paket halinde üretilebilir; bu işlem biraz sürebilir.</div><div class="progress-track" style="margin-top:18px"><div class="progress-fill" id="denemeHazirlikBar" style="width:8%"></div></div><div id="denemeHazirlikMetni" style="margin-top:10px;font-weight:600">Sorular hazırlanıyor…</div></div>', "");
+  modalAc("Deneme Hazırlanıyor", '<div style="text-align:center;padding:20px 0"><div class="alt">20 soruluk deneme hazırlanıyor. Önce hızlı yöntem deneniyor; gerekirse sorular ders ders üretilecek.</div><div class="progress-track" style="margin-top:18px"><div class="progress-fill" id="denemeHazirlikBar" style="width:8%"></div></div><div id="denemeHazirlikMetni" style="margin-top:10px;font-weight:600">Sorular hazırlanıyor…</div></div>', "");
 
   try {
-    // Backend'de mevcut ve çalışan uç: /api/ai/generate-mixed-test
-    // /generate-mock-exam mevcut backend'de olmadığı için "Uç bulunamadı" hatası veriyordu.
-    const sonuc = await apiKarisikTestOlustur(istekler);
-    if (!sonuc.ok) throw new Error(sonuc.mesaj || "Deneme oluşturulamadı.");
-    const sorular = sonuc.veri?.sorular || [];
+    let sorular = [];
+    const karisik = await apiKarisikTestOlustur(istekler);
+    if (karisik.ok) {
+      sorular = karisik.veri?.sorular || karisik.veri?.questions || [];
+    }
+
+    // 404 / "Uç bulunamadı" veya eski backend durumunda fallback.
+    if (sorular.length < 20) {
+      const metin = $("#denemeHazirlikMetni");
+      if (metin) metin.textContent = "Standart deneme ucu kullanılamadı; alternatif soru üretimi başlatılıyor…";
+      sorular = await gercekDenemeYedekSoruUret(istekler);
+    }
+
     if (sorular.length < 20) throw new Error(`Yapay zekâ ${sorular.length} soru hazırladı. 20 soru tamamlanamadı.`);
     modalKapat();
     gercekDenemeSinaviniAc(sorular.slice(0, 20));
   } catch (e) {
-    modalAc("Deneme oluşturulamadı", `<p>${String(e.message || e).replace(/[<>]/g, "")}</p><p class="alt">Backend'in çalıştığından, Ayarlar'daki API adresinin doğru olduğundan ve OpenRouter servisinin erişilebilir olduğundan emin ol.</p>`, '<button class="btn btn-accent" id="denemeHataKapat">Kapat</button>');
+    modalAc("Deneme oluşturulamadı", `<p>${String(e.message || e).replace(/[<>]/g, "")}</p><p class="alt">Ayarlar'daki API adresinin doğru olduğundan ve OpenRouter servisinin erişilebilir olduğundan emin ol.</p>`, '<button class="btn btn-accent" id="denemeHataKapat">Kapat</button>');
     $("#denemeHataKapat").addEventListener("click", modalKapat);
   }
 }
